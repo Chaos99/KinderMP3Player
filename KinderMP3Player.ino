@@ -1,3 +1,5 @@
+
+
 /*************************************************** 
   This is an example for the Adafruit VS1053 Codec Breakout
 
@@ -18,6 +20,7 @@
 #include "Adafruit_VS1053_mod.h"
 #include <Adafruit_MCP23017.h>
 
+#include <Encoder.h>
 
 // These are the pins used for the music maker shield
 #define SHIELD_RESET  -1     // VS1053 reset pin (unused!)
@@ -29,23 +32,45 @@
 // DREQ should be an Int pin, see http://arduino.cc/en/Reference/attachInterrupt
 #define DREQ 3       // VS1053 Data request, ideally an Interrupt pin
 
+#define DEBUG true
+#define VOLUMEBASE 20
+
 const int buttonPin = 10;     // the number of the pushbutton pin
 const int ledPin =  13;      // the number of the LED pin for testing
 
 //status variables
 bool button; // button pressed?
-int volume = 20; // start volume
 bool start; // still in startup?
 File currentTrack;
 File lastTrack;
 File currentAlbumDir;
 typedef enum{PRESTART, PLAYING, STOPPED, PAUSED} status_type;
 status_type status;
+long encoderposition;
+int currentvolume;
 
 //managing objects
 Adafruit_MCP23017 mcp; // io extender
 Adafruit_VS1053_FilePlayer musicPlayer =   // music shield
   Adafruit_VS1053_FilePlayer(SHIELD_RESET, SHIELD_CS, SHIELD_DCS, DREQ, CARDCS);
+Encoder rotEnc(3,4); // pins for rotary encoder
+
+
+// update volume
+void update_volume()
+{
+  long newValue = rotEnc.read();
+  if (newValue != encoderposition){
+    long change = newValue - encoderposition;
+    encoderposition = newValue;
+    currentvolume = currentvolume+change;   
+    if (DEBUG) {
+      Serial.print("Volume (knob): ");
+      Serial.println(currentvolume);
+    }
+  musicPlayer.setVolume(currentvolume, currentvolume);
+  }
+}
 
 //play or resume a file
 void play_track(File track)
@@ -130,9 +155,6 @@ void setup() {
   Serial.println(F("VS1053 found"));
   
   SD.begin(CARDCS);    // initialise the SD card
-   
-  // Set volume for left, right channels. lower numbers == louder volume!
-  musicPlayer.setVolume(volume,volume);
 
   // Timer interrupts are not suggested, better to use DREQ interrupt!
   //musicPlayer.useInterrupt(VS1053_FILEPLAYER_TIMER0_INT); // timer int
@@ -246,16 +268,16 @@ void loop() {
 
     if (c == ',') 
     {
-      volume ++;
-      musicPlayer.setVolume(volume,volume);
+      currentvolume ++;
+      update_volume();
       Serial.print("Volume: ");
-      Serial.println(volume);    }
+      Serial.println(currentvolume);    }
     if (c == '.')
     {
-      volume --;
-      musicPlayer.setVolume(volume,volume);
+      currentvolume --;
+      update_volume();
       Serial.print("Volume: ");
-      Serial.println(volume);
+      Serial.println(currentvolume);
    }
 
    if (c=='l')
@@ -322,5 +344,6 @@ void loop() {
      
  } // if serial.available
 
+  update_volume();
   delay(100);
 }
